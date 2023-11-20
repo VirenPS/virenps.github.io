@@ -16,6 +16,24 @@ def read_data():
 
 # Parameters required
 with st.sidebar:
+    url = "https://www.virensamani.com/"
+
+    st.markdown(
+        f"""
+    <a href={url}><button style="
+    background-color: black;
+    border: none;
+    text-align: center;
+    display: inline-block;
+    color:white;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    ">www.virensamani.com</button></a>
+    """,
+        unsafe_allow_html=True,
+    )
+
     ticker = st.text_input("Ticker", "AMZN")
     start_of_period = dt.date(2015, 1, 1)
 
@@ -28,6 +46,10 @@ with st.sidebar:
     )
     default_signal_tolerance = 5
     signal_tolerance = st.slider("Signal Tolerance", 0, 6, default_signal_tolerance)
+
+    st.subheader(
+        "Disclaimer: \nThis dashboard is not personal advice. It does not constitute a personal recommendation to buy, sell, or otherwise trade all or any of the investments which may be referred to. Data represented on charts is purely an illustration of dashboarding capabilities."
+    )
 
 
 # Create a text element and let the reader know the data is loading.
