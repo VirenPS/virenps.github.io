@@ -11,7 +11,7 @@ import streamlit as st
 
 def run_analysis():
     df = pd.read_csv(
-        r"/Users/virensamani/Projects/virenps.github.io/Dashboard/Data/Inflation Data/b58d10ed (1).csv",
+        r"Data/Inflation Data/b58d10ed (1).csv",
         skiprows=3,
     )
     df = df.ffill()
