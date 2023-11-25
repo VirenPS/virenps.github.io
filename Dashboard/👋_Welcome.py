@@ -1,4 +1,5 @@
 import streamlit as st
+
 from stock_ticker_strats import run_dashboard, test
 
 st.set_page_config(
@@ -8,6 +9,7 @@ st.set_page_config(
         "Get Help": "https://www.virensamani.com/",
         "About": "# This dashboard if for testing purposes only. The data may not be accurate.",
     },
+    layout="wide",
 )
 
 st.write("# 👋 Welcome to my Dashboard!")

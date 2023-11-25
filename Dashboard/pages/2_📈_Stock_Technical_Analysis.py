@@ -4,8 +4,12 @@ import datetime as dt
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
+
+# from Tools.streamlit_tools import plot_metric
 
 
 def read_data(ticker):
@@ -15,6 +19,8 @@ def read_data(ticker):
 
 
 def run_dashboard():
+    st.set_page_config(layout="wide", page_icon="📈")
+
     # Parameters required
     with st.sidebar:
         st.subheader("Parameters:")
@@ -41,12 +47,6 @@ def run_dashboard():
         This dashboard is not personal investment advice. Data represented on charts is purely an illustration of dashboarding capabilities and may not be accurate. It **does not** constitute a personal recommendation to buy, sell, or otherwise trade all or any of the investments which may be referred to.
         """
     )
-
-    # Create a text element and let the reader know the data is loading.
-
-    # Notify the reader that the data was successfully loaded.
-    # data_load_state = st.text("Loading data...")
-    # data_load_state.text("Done! (using st.cache_data)")
 
     df = read_data(ticker)
 
@@ -114,10 +114,6 @@ def run_dashboard():
 
     df.to_excel("output.xlsx", sheet_name="Sheet1")
 
-    # st.subheader("Stock Movements")
-    # st.line_chart(df[["Adj Close", "MA_5", "MA_30", "MA_90", "MA_180"]])
-    # st.scatter_chart(df_big_moves_neg["Adj Close"])
-
     fig, ax = plt.subplots()
 
     ax.plot(df["Adj Close"], label="Price")
@@ -141,6 +137,19 @@ def run_dashboard():
     ax.legend(loc="best")
 
     ax.set(xlim=[date_range[0], date_range[1]])
+
+    # combined plotly.express view
+    fig1 = px.line(
+        df,
+        y=["Adj Close", "MA_5", "MA_30", "MA_90", "MA_180"],
+        color_discrete_sequence=["black", "orange", "green", "blue", "yellow"],
+    )
+    fig2 = px.scatter(
+        df_big_moves_buy, y="Adj Close", color_discrete_sequence=["green"]
+    )
+    fig3 = px.scatter(df_big_moves_sell, y="Adj Close", color_discrete_sequence=["red"])
+
+    fig_combined = go.Figure(data=fig1.data + fig2.data + fig3.data)
 
     cleaned_df = df_big_moves.sort_index(ascending=False)
     last_signal_record = cleaned_df.head(1)
@@ -168,12 +177,21 @@ def run_dashboard():
     )
     st.pyplot(fig)
 
+    # plotly.express graph object: dynamic signals = fig_combined
+    # st.plotly_chart(fig_combined)
+
     # Print Underlying Data for Recent Big moves.
     st.subheader("Signal data")
-    st.write(cleaned_df)
+    st.dataframe(
+        cleaned_df,
+        column_config={"Date": st.column_config.DateColumn(format="YYYY-MM-DD")},
+    )
 
-    st.subheader("Underlying Stock data")
-    st.write(df.sort_index(ascending=False))
+    with st.expander("Underlying Stock Historical data"):
+        st.dataframe(
+            df.sort_index(ascending=False),
+            column_config={"Date": st.column_config.DateColumn(format="YYYY-MM-DD")},
+        )
 
 
 if __name__ == "__main__":
