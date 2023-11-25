@@ -6,7 +6,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from Tools.streamlit_tools import plot_metric
+# from Tools.streamlit_tools import plot_metric
 
 
 def run_analysis():
