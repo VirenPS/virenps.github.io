@@ -1,5 +1,6 @@
 import datetime as dt
 import random
+from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
@@ -11,7 +12,7 @@ import streamlit as st
 
 def run_analysis():
     df = pd.read_csv(
-        r"./Data/Inflation Data/b58d10ed (1).csv",
+        Path(__file__).parent.parent / r"Data/Inflation Data/b58d10ed (1).csv",
         skiprows=3,
     )
     df = df.ffill()

@@ -66,3 +66,4 @@ plotly==5.18.0
 plotly.express==0.4.1
 scipy==1.11.4
 statsmodels==0.14.0
+pathlib==1.0.1
