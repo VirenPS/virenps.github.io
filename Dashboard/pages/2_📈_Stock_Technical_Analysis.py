@@ -107,6 +107,14 @@ def run_dashboard():
 
         st.pyplot(fig)
 
+        with st.expander("Underlying Stock Historical data"):
+            st.dataframe(
+                df.sort_index(ascending=False),
+                column_config={
+                    "Date": st.column_config.DateColumn(format="YYYY-MM-DD")
+                },
+            )
+
     with signals_tab:
         df["MA_5"] = df["Adj Close"].rolling(window=5).mean()
         df["Distance from MA_5"] = (df["Adj Close"] - df["MA_5"]) / df["MA_5"]
