@@ -49,149 +49,208 @@ def run_dashboard():
     )
 
     df = read_data(ticker)
-
     # Run Analysis
     df = df.sort_index(inplace=False)
     last_price = round(df.tail(1)["Adj Close"].values[0], 2)
     last_date = str(df.tail(1).index.values[0])[0:10]
 
-    df["MA_5"] = df["Adj Close"].rolling(window=5).mean()
-    df["Distance from MA_5"] = (df["Adj Close"] - df["MA_5"]) / df["MA_5"]
+    # create 2 tabs
+    analysis_tab, signals_tab = st.tabs(["Analysis", "Signals"])
 
-    df["MA_30"] = df["Adj Close"].rolling(window=30).mean()
-    df["Distance from MA_30"] = (df["Adj Close"] - df["MA_30"]) / df["MA_30"]
+    with analysis_tab:
+        st.title(f"{ticker} Price vs Volume Trended")
 
-    df["MA_60"] = df["Adj Close"].rolling(window=60).mean()
-    df["Distance from MA_60"] = (df["Adj Close"] - df["MA_60"]) / df["MA_60"]
+        # Calculating the average values for "Adj Close" and "Volume"
+        avg_adj_close = df["Adj Close"].mean()
+        avg_volume = df["Volume"].mean()
 
-    df["MA_90"] = df["Adj Close"].rolling(window=90).mean()
-    df["Distance from MA_90"] = (df["Adj Close"] - df["MA_90"]) / df["MA_90"]
+        # Recreating the plot with average lines
+        fig, ax1 = plt.subplots(figsize=(12, 6))
 
-    df["MA_180"] = df["Adj Close"].rolling(window=180).mean()
-    df["Distance from MA_180"] = (df["Adj Close"] - df["MA_180"]) / df["MA_180"]
+        # "Adj Close" on the primary axis
+        ax1.plot(
+            df["Adj Close"],
+            label="Adj Close",
+            color="blue",
+        )
+        ax1.axhline(
+            y=avg_adj_close,
+            color="blue",
+            linestyle="--",
+            label=f"Avg Adj Close: {avg_adj_close:.2f}",
+        )
+        ax1.set_xlabel("Date")
+        ax1.set_ylabel("Adj Close", color="blue")
+        ax1.tick_params(axis="y", labelcolor="blue")
 
-    df["Monthly_Day_change_pc"] = (df["Adj Close"] - df["Adj Close"].shift(30)) / df[
-        "Adj Close"
-    ].shift(30)
+        # "Volume" as bars on the secondary axis
+        ax2 = ax1.twinx()
+        ax2.bar(
+            x=df.index,
+            height=df["Volume"],
+            label="Volume",
+            color="green",
+            alpha=0.6,
+        )
+        ax2.axhline(
+            y=avg_volume,
+            color="green",
+            linestyle="--",
+            label=f"Avg Volume: {avg_volume:.2f}",
+        )
+        ax2.set_ylabel("Volume", color="green")
+        ax2.tick_params(axis="y", labelcolor="green")
 
-    # Parameters
-    uptick_constant = 0.01
-    downtick_constant = 0.075
+        ax1.legend(loc="upper left")
+        ax2.legend(loc="upper right")
+        fig.tight_layout()
 
-    df["buy_signal"] = sum(
-        [
-            (df["Monthly_Day_change_pc"] <= -downtick_constant),
-            (df["Monthly_Day_change_pc"] <= -downtick_constant),
-            (df["Distance from MA_5"] <= -downtick_constant),
-            (df["Distance from MA_30"] <= -downtick_constant),
-            (df["Distance from MA_90"] <= -downtick_constant),
-            (df["Distance from MA_180"] <= -downtick_constant),
+        st.pyplot(fig)
+
+    with signals_tab:
+        df["MA_5"] = df["Adj Close"].rolling(window=5).mean()
+        df["Distance from MA_5"] = (df["Adj Close"] - df["MA_5"]) / df["MA_5"]
+
+        df["MA_30"] = df["Adj Close"].rolling(window=30).mean()
+        df["Distance from MA_30"] = (df["Adj Close"] - df["MA_30"]) / df["MA_30"]
+
+        df["MA_60"] = df["Adj Close"].rolling(window=60).mean()
+        df["Distance from MA_60"] = (df["Adj Close"] - df["MA_60"]) / df["MA_60"]
+
+        df["MA_90"] = df["Adj Close"].rolling(window=90).mean()
+        df["Distance from MA_90"] = (df["Adj Close"] - df["MA_90"]) / df["MA_90"]
+
+        df["MA_180"] = df["Adj Close"].rolling(window=180).mean()
+        df["Distance from MA_180"] = (df["Adj Close"] - df["MA_180"]) / df["MA_180"]
+
+        df["Monthly_Day_change_pc"] = (
+            df["Adj Close"] - df["Adj Close"].shift(30)
+        ) / df["Adj Close"].shift(30)
+
+        # Parameters
+        uptick_constant = 0.01
+        downtick_constant = 0.075
+
+        df["buy_signal"] = sum(
+            [
+                (df["Monthly_Day_change_pc"] <= -downtick_constant),
+                (df["Monthly_Day_change_pc"] <= -downtick_constant),
+                (df["Distance from MA_5"] <= -downtick_constant),
+                (df["Distance from MA_30"] <= -downtick_constant),
+                (df["Distance from MA_90"] <= -downtick_constant),
+                (df["Distance from MA_180"] <= -downtick_constant),
+            ]
+        )
+
+        df["sell_signal"] = sum(
+            [
+                (df["Monthly_Day_change_pc"] >= uptick_constant),
+                (df["Monthly_Day_change_pc"] >= uptick_constant),
+                (df["Distance from MA_5"] >= uptick_constant),
+                (df["Distance from MA_30"] >= uptick_constant),
+                (df["Distance from MA_90"] >= uptick_constant),
+                (df["Distance from MA_180"] >= uptick_constant),
+            ]
+        )
+
+        df["combined_signal"] = df["sell_signal"] - df["buy_signal"]
+
+        df_big_moves = df.loc[
+            (df["buy_signal"] >= signal_tolerance)
+            | (df["sell_signal"] >= signal_tolerance)
         ]
-    )
 
-    df["sell_signal"] = sum(
-        [
-            (df["Monthly_Day_change_pc"] >= uptick_constant),
-            (df["Monthly_Day_change_pc"] >= uptick_constant),
-            (df["Distance from MA_5"] >= uptick_constant),
-            (df["Distance from MA_30"] >= uptick_constant),
-            (df["Distance from MA_90"] >= uptick_constant),
-            (df["Distance from MA_180"] >= uptick_constant),
-        ]
-    )
+        df_big_moves["combined_signal_t_1"] = df_big_moves["combined_signal"].shift(1)
+        df_big_moves["combined_signal_t_2"] = df_big_moves["combined_signal"].shift(2)
 
-    df["combined_signal"] = df["sell_signal"] - df["buy_signal"]
+        df_big_moves_sell = df.loc[df["sell_signal"] >= signal_tolerance]
+        df_big_moves_buy = df.loc[df["buy_signal"] >= signal_tolerance]
 
-    df_big_moves = df.loc[
-        (df["buy_signal"] >= signal_tolerance) | (df["sell_signal"] >= signal_tolerance)
-    ]
+        df.to_excel("output.xlsx", sheet_name="Sheet1")
 
-    df_big_moves["combined_signal_t_1"] = df_big_moves["combined_signal"].shift(1)
-    df_big_moves["combined_signal_t_2"] = df_big_moves["combined_signal"].shift(2)
+        fig, ax = plt.subplots()
 
-    df_big_moves_sell = df.loc[df["sell_signal"] >= signal_tolerance]
-    df_big_moves_buy = df.loc[df["buy_signal"] >= signal_tolerance]
+        ax.plot(df["Adj Close"], label="Price")
+        ax.plot(df["MA_5"], label="MA_5")
+        ax.plot(df["MA_30"], label="MA_30")
+        ax.plot(df["MA_90"], label="MA_90")
+        ax.plot(df["MA_180"], label="MA_180")
 
-    df.to_excel("output.xlsx", sheet_name="Sheet1")
+        ax.scatter(
+            x=df_big_moves_buy.index,
+            y=df_big_moves_buy["Adj Close"],
+            c="green",
+            label="buy",
+        )
+        ax.scatter(
+            x=df_big_moves_sell.index,
+            y=df_big_moves_sell["Adj Close"],
+            c="red",
+            label="sell",
+        )
+        ax.legend(loc="best")
 
-    fig, ax = plt.subplots()
+        ax.set(xlim=[date_range[0], date_range[1]])
 
-    ax.plot(df["Adj Close"], label="Price")
-    ax.plot(df["MA_5"], label="MA_5")
-    ax.plot(df["MA_30"], label="MA_30")
-    ax.plot(df["MA_90"], label="MA_90")
-    ax.plot(df["MA_180"], label="MA_180")
+        # combined plotly.express view
+        fig1 = px.line(
+            df,
+            y=["Adj Close", "MA_5", "MA_30", "MA_90", "MA_180"],
+            color_discrete_sequence=["black", "orange", "green", "blue", "yellow"],
+        )
+        fig2 = px.scatter(
+            df_big_moves_buy, y="Adj Close", color_discrete_sequence=["green"]
+        )
+        fig3 = px.scatter(
+            df_big_moves_sell, y="Adj Close", color_discrete_sequence=["red"]
+        )
 
-    ax.scatter(
-        x=df_big_moves_buy.index,
-        y=df_big_moves_buy["Adj Close"],
-        c="green",
-        label="buy",
-    )
-    ax.scatter(
-        x=df_big_moves_sell.index,
-        y=df_big_moves_sell["Adj Close"],
-        c="red",
-        label="sell",
-    )
-    ax.legend(loc="best")
+        fig_combined = go.Figure(data=fig1.data + fig2.data + fig3.data)
 
-    ax.set(xlim=[date_range[0], date_range[1]])
+        cleaned_df = df_big_moves.sort_index(ascending=False)
+        last_signal_record = cleaned_df.head(1)
 
-    # combined plotly.express view
-    fig1 = px.line(
-        df,
-        y=["Adj Close", "MA_5", "MA_30", "MA_90", "MA_180"],
-        color_discrete_sequence=["black", "orange", "green", "blue", "yellow"],
-    )
-    fig2 = px.scatter(
-        df_big_moves_buy, y="Adj Close", color_discrete_sequence=["green"]
-    )
-    fig3 = px.scatter(df_big_moves_sell, y="Adj Close", color_discrete_sequence=["red"])
+        last_signal_date = str(last_signal_record.index.values[0])[0:10]
+        last_signal_price = last_signal_record["Adj Close"].values[0]
 
-    fig_combined = go.Figure(data=fig1.data + fig2.data + fig3.data)
+        if last_signal_record["buy_signal"][0] >= signal_tolerance:
+            last_signal_dir = "Buy"
+        else:
+            last_signal_dir = "Sell"
 
-    cleaned_df = df_big_moves.sort_index(ascending=False)
-    last_signal_record = cleaned_df.head(1)
+        # Visualisation
+        st.title(f"{ticker} Stock Technical Analysis")
+        st.markdown(f"Price: {last_price} (as of {last_date})")
 
-    last_signal_date = str(last_signal_record.index.values[0])[0:10]
-    last_signal_price = last_signal_record["Adj Close"].values[0]
+        st.markdown(
+            "Last Signal: "
+            + last_signal_dir
+            + " @ "
+            + str(round(last_signal_price, 2))
+            + " (as of "
+            + last_signal_date
+            + ")"
+        )
 
-    if last_signal_record["buy_signal"][0] >= signal_tolerance:
-        last_signal_dir = "Buy"
-    else:
-        last_signal_dir = "Sell"
+        st.pyplot(fig)
 
-    # Visualisation
-    st.title(f"{ticker} Stock Technical Analysis")
-    st.subheader(f"Price: {last_price} (as of {last_date})")
+        # plotly.express graph object: dynamic signals = fig_combined
+        # st.plotly_chart(fig_combined)
 
-    st.subheader(
-        "Last Signal: "
-        + last_signal_dir
-        + " @ "
-        + str(round(last_signal_price, 2))
-        + " (as of "
-        + last_signal_date
-        + ")"
-    )
-    st.pyplot(fig)
-
-    # plotly.express graph object: dynamic signals = fig_combined
-    # st.plotly_chart(fig_combined)
-
-    # Print Underlying Data for Recent Big moves.
-    st.subheader("Signal data")
-    st.dataframe(
-        cleaned_df,
-        column_config={"Date": st.column_config.DateColumn(format="YYYY-MM-DD")},
-    )
-
-    with st.expander("Underlying Stock Historical data"):
+        # Print Underlying Data for Recent Big moves.
+        st.subheader("Signal data")
         st.dataframe(
-            df.sort_index(ascending=False),
+            cleaned_df,
             column_config={"Date": st.column_config.DateColumn(format="YYYY-MM-DD")},
         )
+
+        with st.expander("Underlying Stock Historical data"):
+            st.dataframe(
+                df.sort_index(ascending=False),
+                column_config={
+                    "Date": st.column_config.DateColumn(format="YYYY-MM-DD")
+                },
+            )
 
 
 if __name__ == "__main__":
