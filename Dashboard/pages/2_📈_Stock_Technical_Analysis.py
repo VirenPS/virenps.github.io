@@ -12,9 +12,11 @@ import yfinance as yf
 # from Tools.streamlit_tools import plot_metric
 
 
-def read_data(ticker):
+def read_data(ticker, start_of_period="2020-01-01"):
     return yf.download(
-        ticker, start="2010-01-01", end=dt.datetime.now().date() + dt.timedelta(days=1)
+        ticker,
+        start=start_of_period,
+        end=dt.datetime.now().date() + dt.timedelta(days=1),
     )
 
 
@@ -25,7 +27,7 @@ def run_dashboard():
     with st.sidebar:
         st.subheader("Parameters:")
         ticker = st.text_input("Ticker", "AMZN")
-        start_of_period = dt.date(2015, 1, 1)
+        start_of_period = dt.date(2020, 1, 1)
 
         date_range = st.slider(
             "Select your date range",
@@ -48,7 +50,7 @@ def run_dashboard():
         """
     )
 
-    df = read_data(ticker)
+    df = read_data(ticker, start_of_period)
     # Run Analysis
     df = df.sort_index(inplace=False)
     last_price = round(df.tail(1)["Adj Close"].values[0], 2)
