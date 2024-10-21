@@ -79,43 +79,12 @@ def run_ma_analysis(tickers, ma_params, breach_limit_alert, data):
         results[ticker] = ticker_df
 
         results_df = pd.concat(results.values(), ignore_index=False).reset_index()
-
-        start_year_date = results_df["Date"].max() - dt.timedelta(days=365)
-        req_results_year = results_df.loc[(results_df["Date"] >= start_year_date)]
-        req_results_year_agg = (
-            req_results_year.groupby("Ticker")["Price"]
-            .agg(["max", "min"])
-            .reset_index()
-            .rename(columns={"max": "Price_year max", "min": "Price_year min"})
-        )
-
-        combined = pd.concat([results_df, req_results_year_agg], keys=["Ticker"])
-
         results_df_filename = (
             "ma_results_" + results_df["Date"].max().strftime("%Y-%m-%d") + ".csv"
         )
         results_df_path = (
             "/Users/virensamani/Projects/virenps.github.io/Dashboard/ma_results/"
             + results_df_filename
-        )
-
-        start_year_date = results_df["Date"].max() - dt.timedelta(days=365)
-        req_results_year = results_df.loc[(results_df["Date"] >= start_year_date)]
-        req_results_year_agg = (
-            req_results_year.groupby("Ticker")["Price"]
-            .agg(["max", "min"])
-            .reset_index()
-            .rename(columns={"max": "Price_year_max", "min": "Price_year_min"})
-        )
-
-        results_df = results_df.merge(req_results_year_agg, on=["Ticker"])
-        results_df["Percentile"] = round(
-            (
-                (results_df["Price"] - results_df["Price_year_min"])
-                / (results_df["Price_year_max"] - results_df["Price_year_min"])
-            )
-            * 100,
-            1,
         )
 
         results_df[
@@ -130,9 +99,6 @@ def run_ma_analysis(tickers, ma_params, breach_limit_alert, data):
                 "MA100_Breach",
                 "Total_Breach",
                 "Signal",
-                "Price_year_min",
-                "Price_year_max",
-                "Percentile",
             ]
         ].to_csv(results_df_path)
 
@@ -142,20 +108,7 @@ def run_ma_analysis(tickers, ma_params, breach_limit_alert, data):
 
     print("Written to MA analysis to file:", results_df_path)
 
-    return (
-        results,
-        results_recent[
-            [
-                "Ticker",
-                "Price",
-                "Total_Breach",
-                "Signal",
-                "Price_year_min",
-                "Price_year_max",
-                "Percentile",
-            ]
-        ],
-    )
+    return results, results_recent[["Ticker", "Price", "Total_Breach", "Signal"]]
 
 
 def plot_signals(results, ticker, tolerance=4, no_of_points=100):
@@ -496,7 +449,6 @@ if __name__ == "__main__":
     #     + results["Date"].max()
     #     + ".csv"
     # )
-    # # When running first time for the day.
 
     ma_results_dir = (
         "/Users/virensamani/Projects/virenps.github.io/Dashboard/ma_results"
