@@ -1,4 +1,6 @@
 import datetime as dt
+import glob
+import os
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -35,9 +37,6 @@ def run_ma_analysis(tickers, ma_params, breach_limit_alert, data):
 
         # Create an empty DataFrame to store moving averages
         ma_df = pd.DataFrame(index=data.index)
-
-        # Initialize a breach count for the ticker
-        breach_count = 0
 
         # Calculate moving averages using cumulative sum for each window
         for window, threshold in ma_params.items():
@@ -81,6 +80,44 @@ def run_ma_analysis(tickers, ma_params, breach_limit_alert, data):
 
         results_df = pd.concat(results.values(), ignore_index=False).reset_index()
 
+        start_year_date = results_df["Date"].max() - dt.timedelta(days=365)
+        req_results_year = results_df.loc[(results_df["Date"] >= start_year_date)]
+        req_results_year_agg = (
+            req_results_year.groupby("Ticker")["Price"]
+            .agg(["max", "min"])
+            .reset_index()
+            .rename(columns={"max": "Price_year max", "min": "Price_year min"})
+        )
+
+        combined = pd.concat([results_df, req_results_year_agg], keys=["Ticker"])
+
+        results_df_filename = (
+            "ma_results_" + results_df["Date"].max().strftime("%Y-%m-%d") + ".csv"
+        )
+        results_df_path = (
+            "/Users/virensamani/Projects/virenps.github.io/Dashboard/ma_results/"
+            + results_df_filename
+        )
+
+        start_year_date = results_df["Date"].max() - dt.timedelta(days=365)
+        req_results_year = results_df.loc[(results_df["Date"] >= start_year_date)]
+        req_results_year_agg = (
+            req_results_year.groupby("Ticker")["Price"]
+            .agg(["max", "min"])
+            .reset_index()
+            .rename(columns={"max": "Price_year_max", "min": "Price_year_min"})
+        )
+
+        results_df = results_df.merge(req_results_year_agg, on=["Ticker"])
+        results_df["Percentile"] = round(
+            (
+                (results_df["Price"] - results_df["Price_year_min"])
+                / (results_df["Price_year_max"] - results_df["Price_year_min"])
+            )
+            * 100,
+            1,
+        )
+
         results_df[
             [
                 "Date",
@@ -93,18 +130,32 @@ def run_ma_analysis(tickers, ma_params, breach_limit_alert, data):
                 "MA100_Breach",
                 "Total_Breach",
                 "Signal",
+                "Price_year_min",
+                "Price_year_max",
+                "Percentile",
             ]
-        ].to_csv(
-            "/Users/virensamani/Projects/virenps.github.io/Dashboard/ma_results/ma_full_data_"
-            + dt.datetime.today().strftime("%Y-%m-%d")
-            + ".csv"
-        )
+        ].to_csv(results_df_path)
 
         results_recent = pd.DataFrame()
         for ticker in results:
             results_recent = pd.concat([results_recent, results[ticker].tail(1)])
 
-    return results, results_recent[["Ticker", "Price", "Total_Breach", "Signal"]]
+    print("Written to MA analysis to file:", results_df_path)
+
+    return (
+        results,
+        results_recent[
+            [
+                "Ticker",
+                "Price",
+                "Total_Breach",
+                "Signal",
+                "Price_year_min",
+                "Price_year_max",
+                "Percentile",
+            ]
+        ],
+    )
 
 
 def plot_signals(results, ticker, tolerance=4, no_of_points=100):
@@ -178,7 +229,7 @@ def plot_signals(results, ticker, tolerance=4, no_of_points=100):
     return plt
 
 
-def run_dashboard(results, final_results):
+def run_dashboard(results, daily_results):
     st.set_page_config(layout="wide")
 
     with st.sidebar:
@@ -195,44 +246,35 @@ def run_dashboard(results, final_results):
 
     st.subheader("Index Signals across SP100 and Nasdaq 100")
 
-    final_results_signals = (
-        final_results.sort_values(
-            ["Signal", "Total_Breach_ABS"], ascending=[True, False]
-        )
-        .loc[
-            (final_results["Date"] == final_results["Date"].max())
-            & (final_results["Signal"].notnull())
-        ]
-        .drop(["Unnamed: 0"], axis=1)
-        .set_index("Date")
-    )[["Ticker", "Price", "Total_Breach", "Signal"]]
-
     st.subheader("Buy Signals")
     st.dataframe(
-        final_results_signals.loc[final_results_signals["Signal"] == "BUY"],
+        daily_results.loc[daily_results["Signal"] == "BUY"],
         use_container_width=True,
     )
 
     st.subheader("Sell Signals")
     st.dataframe(
-        final_results_signals.loc[final_results_signals["Signal"] == "SELL"],
+        daily_results.loc[daily_results["Signal"] == "SELL"],
         use_container_width=True,
     )
 
-    builder = GridOptionsBuilder.from_dataframe(final_results_signals)
+    daily_results_signals = daily_results.loc[
+        (daily_results["Signal"].notna())
+    ].sort_values(by="Signal")
+
+    builder = GridOptionsBuilder.from_dataframe(daily_results_signals)
     builder.configure_pagination(enabled=True)
     builder.configure_selection(selection_mode="single", use_checkbox=True)
     grid_options = builder.build()
 
     # # Display AgGrid
     st.write("AgGrid Demo")
-    return_value = AgGrid(final_results_signals, gridOptions=grid_options)
+    return_value = AgGrid(daily_results_signals, gridOptions=grid_options)
     if return_value["selected_rows"] is None:
         st.write("No row selected")
     else:
-        # if not return_value["selected_rows"].empty:
         system_name = return_value["selected_rows"]
-        st.session_state.search_1 = system_name.values[0][0]
+        st.session_state.search_1 = system_name.values[0][1]
 
     with st.sidebar:
         st.subheader("Parameters:")
@@ -431,6 +473,7 @@ if __name__ == "__main__":
         "HAL",
         "DVN",
         "BAX",
+        "ENPH",
     ]
 
     # # # Read data and write to file
@@ -441,19 +484,39 @@ if __name__ == "__main__":
     #     breach_limit_alert=breach_limit_alert,
     #     data=data,
     # )
+    # daily_results_signals = (
+    #     results.sort_values(["Ticker", "Signal"], ascending=[True, False])
+    #     .loc[(results["Date"] == results["Date"].max())]
+    #     .drop(["Unnamed: 0"], axis=1)
+    #     .set_index("Date")
+    # )[["Ticker", "Price", "Total_Breach", "Signal"]]
+
+    # daily_results_signals.to_csv(
+    #     "/Users/virensamani/Projects/virenps.github.io/Dashboard/ma_results/ma_daily_results"
+    #     + results["Date"].max()
+    #     + ".csv"
+    # )
+    # # When running first time for the day.
+
+    ma_results_dir = (
+        "/Users/virensamani/Projects/virenps.github.io/Dashboard/ma_results"
+    )
+    results_dates = []
+    for file_path in glob.glob(ma_results_dir + "/ma_results_*.csv"):
+        results_dates.append(
+            dt.datetime.strptime(
+                os.path.basename(file_path)[:-4][-10:], "%Y-%m-%d"
+            ).date()
+        )
+    latest_data_date = max(results_dates)
 
     # # Read saved data file - change to read latest file
     results = pd.read_csv(
-        "/Users/virensamani/Projects/virenps.github.io/Dashboard/ma_results/ma_full_data_2024-10-16.csv"
+        f"/Users/virensamani/Projects/virenps.github.io/Dashboard/ma_results/ma_results_{latest_data_date}.csv"
     )
-    final_results = results.loc[results["Signal"] != ""]
-    final_results["Total_Breach_ABS"] = final_results["Total_Breach"].abs()
-
-    final_results.to_csv(
-        "/Users/virensamani/Projects/virenps.github.io/Dashboard/ma_results/ma_index_tickers_signals"
-        + dt.datetime.today().strftime("%Y-%m-%d")
-        + ".csv"
+    daily_results = pd.read_csv(
+        f"/Users/virensamani/Projects/virenps.github.io/Dashboard/ma_results/ma_daily_results_{latest_data_date}.csv"
     )
 
-    run_dashboard(results, final_results)
-    # plot_signals(final_results, "AAPL")
+    run_dashboard(results, daily_results)
+    # plot_signals(daily_results, "AAPL")
